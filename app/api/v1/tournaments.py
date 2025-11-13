@@ -35,8 +35,10 @@ async def create_tournament(
     - **registration_end**: Fecha de fin de inscripciones (opcional)
     - **tournament_start**: Fecha de inicio del torneo (opcional)
     - **tournament_end**: Fecha de fin del torneo (opcional)
+    
+    **Publica evento:** tournament.created
     """
-    return TournamentService.create_tournament(db, tournament)
+    return await TournamentService.create_tournament_async(db, tournament)
 
 
 @router.get("/", response_model=TournamentListResponse)
@@ -99,8 +101,10 @@ async def update_tournament(
     Actualiza un torneo existente.
     
     Todos los campos son opcionales. Solo se actualizarán los campos enviados.
+    
+    **Publica evento:** tournament.updated
     """
-    return TournamentService.update_tournament(db, tournament_id, tournament)
+    return await TournamentService.update_tournament_async(db, tournament_id, tournament)
 
 
 @router.patch("/{tournament_id}/status", response_model=TournamentResponse)
@@ -118,8 +122,10 @@ async def change_tournament_status(
     - **in_progress**: En curso
     - **completed**: Finalizado
     - **cancelled**: Cancelado
+    
+    **Publica evento:** tournament.status.{new_status}
     """
-    return TournamentService.change_status(db, tournament_id, new_status)
+    return await TournamentService.change_status_async(db, tournament_id, new_status)
 
 
 @router.delete("/{tournament_id}", status_code=status.HTTP_200_OK)
@@ -129,5 +135,7 @@ async def delete_tournament(
 ):
     """
     Elimina un torneo.
+    
+    **Publica evento:** tournament.deleted
     """
-    return TournamentService.delete_tournament(db, tournament_id)
+    return await TournamentService.delete_tournament_async(db, tournament_id)

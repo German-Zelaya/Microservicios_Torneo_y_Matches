@@ -80,14 +80,35 @@ class TournamentService:
         return tournament
     
     @staticmethod
-    def get_tournament_by_id(db: Session, tournament_id: int, use_cache: bool = False) -> Tournament:
+    async def create_tournament_async(db: Session, tournament_data: TournamentCreate) -> Tournament:
+        """
+        Crea un nuevo torneo y publica evento.
+        
+        Args:
+            db: Sesión de base de datos
+            tournament_data: Datos del torneo a crear
+            
+        Returns:
+            Tournament: Torneo creado
+        """
+        # Crear el torneo
+        tournament = TournamentService.create_tournament(db, tournament_data)
+        
+        # Publicar evento
+        from app.services.messaging_service import rabbitmq_service
+        tournament_dict = tournament.to_dict()
+        await rabbitmq_service.publish_tournament_created(tournament_dict)
+        
+        return tournament
+    
+    @staticmethod
+    def get_tournament_by_id(db: Session, tournament_id: int) -> Tournament:
         """
         Obtiene un torneo por su ID.
         
         Args:
             db: Sesión de base de datos
             tournament_id: ID del torneo
-            use_cache: Si es True, intenta usar caché (solo para lectura)
             
         Returns:
             Tournament: Torneo encontrado
@@ -222,6 +243,32 @@ class TournamentService:
         return tournament
     
     @staticmethod
+    async def update_tournament_async(
+        db: Session,
+        tournament_id: int,
+        tournament_data: TournamentUpdate
+    ) -> Tournament:
+        """
+        Actualiza un torneo y publica evento.
+        
+        Args:
+            db: Sesión de base de datos
+            tournament_id: ID del torneo a actualizar
+            tournament_data: Datos a actualizar
+            
+        Returns:
+            Tournament: Torneo actualizado
+        """
+        tournament = TournamentService.update_tournament(db, tournament_id, tournament_data)
+        
+        # Publicar evento
+        from app.services.messaging_service import rabbitmq_service
+        tournament_dict = tournament.to_dict()
+        await rabbitmq_service.publish_tournament_updated(tournament_dict)
+        
+        return tournament
+    
+    @staticmethod
     def delete_tournament(db: Session, tournament_id: int) -> dict:
         """
         Elimina un torneo.
@@ -246,6 +293,30 @@ class TournamentService:
         logger.info(f"🗑️ Torneo {tournament_id} eliminado")
         
         return {"message": f"Torneo '{tournament_name}' eliminado correctamente"}
+    
+    @staticmethod
+    async def delete_tournament_async(db: Session, tournament_id: int) -> dict:
+        """
+        Elimina un torneo y publica evento.
+        
+        Args:
+            db: Sesión de base de datos
+            tournament_id: ID del torneo a eliminar
+            
+        Returns:
+            dict: Mensaje de confirmación
+        """
+        tournament = TournamentService.get_tournament_by_id(db, tournament_id)
+        tournament_name = tournament.name
+        tournament_id_value = tournament.id
+        
+        result = TournamentService.delete_tournament(db, tournament_id)
+        
+        # Publicar evento
+        from app.services.messaging_service import rabbitmq_service
+        await rabbitmq_service.publish_tournament_deleted(tournament_id_value, tournament_name)
+        
+        return result
     
     @staticmethod
     def change_status(
@@ -276,5 +347,39 @@ class TournamentService:
         TournamentService._invalidate_cache()  # También invalida listas
         
         logger.info(f"🔄 Torneo {tournament_id} cambió de estado: {old_status} → {new_status}")
+        
+        return tournament
+    
+    @staticmethod
+    async def change_status_async(
+        db: Session,
+        tournament_id: int,
+        new_status: TournamentStatus
+    ) -> Tournament:
+        """
+        Cambia el estado de un torneo y publica evento.
+        
+        Args:
+            db: Sesión de base de datos
+            tournament_id: ID del torneo
+            new_status: Nuevo estado
+            
+        Returns:
+            Tournament: Torneo actualizado
+        """
+        tournament = TournamentService.get_tournament_by_id(db, tournament_id)
+        old_status = tournament.status.value if tournament.status else None
+        
+        tournament = TournamentService.change_status(db, tournament_id, new_status)
+        
+        # Publicar evento
+        from app.services.messaging_service import rabbitmq_service
+        tournament_dict = tournament.to_dict()
+        await rabbitmq_service.publish_tournament_status_changed(
+            tournament_id, 
+            old_status, 
+            new_status.value,
+            tournament_dict
+        )
         
         return tournament

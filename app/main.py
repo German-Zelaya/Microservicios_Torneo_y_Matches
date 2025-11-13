@@ -40,6 +40,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️ Redis no disponible - continuando sin caché")
     
+    # Conectar a RabbitMQ
+    from app.services.messaging_service import rabbitmq_service
+    await rabbitmq_service.connect()
+    if rabbitmq_service.is_connected():
+        logger.info("✅ RabbitMQ conectado y listo")
+    else:
+        logger.warning("⚠️ RabbitMQ no disponible - los eventos no se publicarán")
+    
     yield
     
     # Shutdown
@@ -48,6 +56,10 @@ async def lifespan(app: FastAPI):
     # Cerrar conexión a Redis
     from app.cache.redis_client import redis_client
     redis_client.close()
+    
+    # Cerrar conexión a RabbitMQ
+    from app.services.messaging_service import rabbitmq_service
+    await rabbitmq_service.close()
 
 
 # Crear la aplicación FastAPI
@@ -138,6 +150,24 @@ async def redis_health():
         "connected": is_connected,
         "host": settings.REDIS_HOST,
         "port": settings.REDIS_PORT
+    }
+
+
+@app.get("/health/rabbitmq")
+async def rabbitmq_health():
+    """
+    Verifica la conexión a RabbitMQ.
+    """
+    from app.services.messaging_service import rabbitmq_service
+    
+    is_connected = rabbitmq_service.is_connected()
+    
+    return {
+        "status": "healthy" if is_connected else "unhealthy",
+        "service": "RabbitMQ",
+        "connected": is_connected,
+        "host": settings.RABBITMQ_HOST,
+        "port": settings.RABBITMQ_PORT
     }
 
 

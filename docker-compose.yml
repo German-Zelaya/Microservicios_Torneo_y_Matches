@@ -16,6 +16,26 @@ services:
       timeout: 3s
       retries: 3
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq-tournaments
+    ports:
+      - "5672:5672"   # Puerto AMQP
+      - "15672:15672" # Puerto de administración web
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
 volumes:
   redis_data:
+    driver: local
+  rabbitmq_data:
     driver: local
