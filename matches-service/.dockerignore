@@ -1,0 +1,38 @@
+# Binarios compilados
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+matches-service
+matches-service.exe
+main
+
+# Test y coverage
+*.test
+*.out
+coverage.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Vendor (se descarga en build)
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docs
+README.md
+*.md
+
+# Config local
+.env

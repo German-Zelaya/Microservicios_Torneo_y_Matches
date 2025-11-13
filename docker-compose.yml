@@ -1,9 +1,57 @@
 version: '3.8'
 
 services:
+  # ========================================
+  # BASES DE DATOS
+  # ========================================
+  
+  # PostgreSQL para ambos servicios
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-esports
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: super124man
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - esports-network
+
+  # MongoDB para matches-service
+  mongodb:
+    image: mongo:7-jammy
+    container_name: mongodb-esports
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - esports-network
+
+  # ========================================
+  # CACHÉ Y MENSAJERÍA
+  # ========================================
+  
+  # Redis para caché (compartido)
   redis:
     image: redis:7-alpine
-    container_name: redis-tournaments
+    container_name: redis-esports
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -15,10 +63,13 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    networks:
+      - esports-network
 
+  # RabbitMQ para mensajería (compartido)
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: rabbitmq-tournaments
+    container_name: rabbitmq-esports
     ports:
       - "5672:5672"   # Puerto AMQP
       - "15672:15672" # Puerto de administración web
@@ -33,9 +84,99 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    networks:
+      - esports-network
 
+  # ========================================
+  # MICROSERVICIOS (Opcional - comentados por defecto)
+  # ========================================
+  
+  # Tournaments Service (Python/FastAPI)
+  # Como está en la raíz, el context es "."
+  tournaments-service:
+    build:
+      context: .                    # ← Raíz del proyecto
+      dockerfile: Dockerfile        # ← Dockerfile en la raíz
+    container_name: tournaments-service
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql://postgres:super124man@postgres:5432/tournaments_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - esports-network
+    # Descomentar para modo desarrollo con hot-reload
+    # volumes:
+    #   - ./app:/app/app
+    #   - ./requirements.txt:/app/requirements.txt
+
+  # Matches Service (Go/Fiber)
+  matches-service:
+    build:
+      context: ./matches-service
+      dockerfile: Dockerfile
+    container_name: matches-service
+    ports:
+      - "8002:8002"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: super124man
+      POSTGRES_DB: matches_db
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - esports-network
+    # Descomentar para modo desarrollo
+    # volumes:
+    #   - ./matches-service:/app
+
+# ========================================
+# VOLÚMENES
+# ========================================
 volumes:
+  postgres_data:
+    driver: local
+  mongodb_data:
+    driver: local
   redis_data:
     driver: local
   rabbitmq_data:
     driver: local
+
+# ========================================
+# REDES
+# ========================================
+networks:
+  esports-network:
+    driver: bridge
