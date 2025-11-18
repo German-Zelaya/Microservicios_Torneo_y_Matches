@@ -147,6 +147,8 @@ func main() {
 		matches.Patch("/:id/start", matchHandler.StartMatch)
 		matches.Patch("/:id/complete", matchHandler.CompleteMatch)
 		matches.Patch("/:id/cancel", matchHandler.CancelMatch)
+		matches.Post("/:id/result", matchHandler.ReportResult)      // Reportar resultado
+		matches.Put("/:id/validate", matchHandler.ValidateResult)   // Validar resultado
 	}
 
 	// Iniciar servidor

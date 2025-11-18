@@ -268,6 +268,127 @@ func (s *MatchService) CancelMatch(id uint, reason string) (*models.Match, error
 	return match, nil
 }
 
+// ReportResult reporta el resultado de una partida (sin validar aún)
+func (s *MatchService) ReportResult(id uint, req *models.ReportResultRequest) (*models.Match, error) {
+	match, err := s.GetMatchByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validar que se puede reportar resultado
+	if !match.CanReportResult() {
+		return nil, errors.New("la partida debe estar en progreso para reportar resultado")
+	}
+
+	// Validar que el ganador es uno de los jugadores
+	if match.Player1ID == nil || match.Player2ID == nil {
+		return nil, errors.New("la partida debe tener ambos jugadores asignados")
+	}
+	if req.WinnerID != *match.Player1ID && req.WinnerID != *match.Player2ID {
+		return nil, errors.New("el ganador debe ser uno de los jugadores de la partida")
+	}
+
+	// Validar puntuaciones
+	if req.Player1Score == req.Player2Score {
+		return nil, errors.New("no puede haber empate, debe haber un ganador")
+	}
+
+	// Validar que el ganador tenga el puntaje más alto
+	if (req.WinnerID == *match.Player1ID && req.Player1Score <= req.Player2Score) ||
+		(req.WinnerID == *match.Player2ID && req.Player2Score <= req.Player1Score) {
+		return nil, errors.New("el ganador debe tener el puntaje más alto")
+	}
+
+	// Actualizar el match con el resultado reportado
+	match.Status = models.MatchStatusPendingValidation
+	match.Player1Score = req.Player1Score
+	match.Player2Score = req.Player2Score
+	match.WinnerID = &req.WinnerID
+	if req.Notes != "" {
+		match.Notes = req.Notes
+	}
+
+	if err := database.PostgresDB.Save(match).Error; err != nil {
+		return nil, fmt.Errorf("error al reportar resultado: %w", err)
+	}
+
+	// Invalidar caché
+	cache.InvalidateMatchCache(id)
+	cache.InvalidateMatchListCache()
+
+	// Publicar evento de resultado reportado
+	matchData := s.ToMap(match)
+	messaging.PublishMatchResultReported(matchData)
+
+	return match, nil
+}
+
+// ValidateResult valida un resultado reportado (referee/admin)
+func (s *MatchService) ValidateResult(id uint, req *models.ValidateResultRequest) (*models.Match, error) {
+	match, err := s.GetMatchByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validar que está en estado pendiente de validación
+	if !match.CanValidate() {
+		return nil, errors.New("la partida debe estar en estado de validación pendiente")
+	}
+
+	if req.Approved {
+		// Aprobar: marcar como completada
+		now := time.Now()
+		match.Status = models.MatchStatusCompleted
+		match.CompletedAt = &now
+
+		if req.Notes != "" {
+			// Agregar notas del referee a las notas existentes
+			if match.Notes != "" {
+				match.Notes = match.Notes + "\n[Referee]: " + req.Notes
+			} else {
+				match.Notes = "[Referee]: " + req.Notes
+			}
+		}
+
+		if err := database.PostgresDB.Save(match).Error; err != nil {
+			return nil, fmt.Errorf("error al validar resultado: %w", err)
+		}
+
+		// Invalidar caché
+		cache.InvalidateMatchCache(id)
+		cache.InvalidateMatchListCache()
+
+		// Publicar evento match.finished
+		matchData := s.ToMap(match)
+		messaging.PublishMatchFinished(matchData)
+
+	} else {
+		// Rechazar: devolver a in_progress
+		match.Status = models.MatchStatusInProgress
+		match.Player1Score = 0
+		match.Player2Score = 0
+		match.WinnerID = nil
+
+		if req.Notes != "" {
+			match.Notes = "[Rechazado]: " + req.Notes
+		}
+
+		if err := database.PostgresDB.Save(match).Error; err != nil {
+			return nil, fmt.Errorf("error al rechazar resultado: %w", err)
+		}
+
+		// Invalidar caché
+		cache.InvalidateMatchCache(id)
+		cache.InvalidateMatchListCache()
+
+		// Publicar evento de resultado rechazado
+		matchData := s.ToMap(match)
+		messaging.PublishMatchResultRejected(matchData)
+	}
+
+	return match, nil
+}
+
 // ToResponse convierte un Match a MatchResponse
 func (s *MatchService) ToResponse(match *models.Match) *models.MatchResponse {
 	return &models.MatchResponse{

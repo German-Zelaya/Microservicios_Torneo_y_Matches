@@ -46,6 +46,20 @@ type RecordResultRequest struct {
 	Notes    string                 `json:"notes"`
 }
 
+// ReportResultRequest DTO para reportar el resultado de una partida
+type ReportResultRequest struct {
+	Player1Score int    `json:"player1_score" validate:"required,min=0"`
+	Player2Score int    `json:"player2_score" validate:"required,min=0"`
+	WinnerID     uint   `json:"winner_id" validate:"required"`
+	Notes        string `json:"notes"`
+}
+
+// ValidateResultRequest DTO para validar un resultado reportado
+type ValidateResultRequest struct {
+	Approved bool   `json:"approved" validate:"required"` // true para aprobar, false para rechazar
+	Notes    string `json:"notes"`                        // Notas del referee/admin
+}
+
 // MatchResponse DTO para respuesta de partida
 type MatchResponse struct {
 	ID           uint        `json:"id"`

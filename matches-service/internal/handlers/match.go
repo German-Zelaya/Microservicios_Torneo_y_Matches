@@ -266,3 +266,71 @@ func (h *MatchHandler) CancelMatch(c *fiber.Ctx) error {
 
 	return c.JSON(h.service.ToResponse(match))
 }
+
+// ReportResult godoc
+// @Summary Reportar resultado de una partida
+// @Tags Matches
+// @Accept json
+// @Produce json
+// @Param id path int true "ID de la partida"
+// @Param result body models.ReportResultRequest true "Resultado de la partida"
+// @Success 200 {object} models.MatchResponse
+// @Router /api/v1/matches/{id}/result [post]
+func (h *MatchHandler) ReportResult(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID inválido",
+		})
+	}
+
+	var req models.ReportResultRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Datos inválidos",
+		})
+	}
+
+	match, err := h.service.ReportResult(uint(id), &req)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(h.service.ToResponse(match))
+}
+
+// ValidateResult godoc
+// @Summary Validar resultado reportado (referee/admin)
+// @Tags Matches
+// @Accept json
+// @Produce json
+// @Param id path int true "ID de la partida"
+// @Param validation body models.ValidateResultRequest true "Validación del resultado"
+// @Success 200 {object} models.MatchResponse
+// @Router /api/v1/matches/{id}/validate [put]
+func (h *MatchHandler) ValidateResult(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID inválido",
+		})
+	}
+
+	var req models.ValidateResultRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Datos inválidos",
+		})
+	}
+
+	match, err := h.service.ValidateResult(uint(id), &req)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(h.service.ToResponse(match))
+}

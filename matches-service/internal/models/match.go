@@ -10,10 +10,11 @@ import (
 type MatchStatus string
 
 const (
-	MatchStatusScheduled  MatchStatus = "scheduled"   // Programada
-	MatchStatusInProgress MatchStatus = "in_progress" // En progreso
-	MatchStatusCompleted  MatchStatus = "completed"   // Completada
-	MatchStatusCancelled  MatchStatus = "cancelled"   // Cancelada
+	MatchStatusScheduled         MatchStatus = "scheduled"          // Programada
+	MatchStatusInProgress        MatchStatus = "in_progress"        // En progreso
+	MatchStatusPendingValidation MatchStatus = "pending_validation" // Esperando validación
+	MatchStatusCompleted         MatchStatus = "completed"          // Completada
+	MatchStatusCancelled         MatchStatus = "cancelled"          // Cancelada
 )
 
 // Match representa una partida dentro de un torneo
@@ -76,4 +77,14 @@ func (m *Match) CanStart() bool {
 // CanComplete verifica si la partida puede completarse
 func (m *Match) CanComplete() bool {
 	return m.Status == MatchStatusInProgress
+}
+
+// CanReportResult verifica si se puede reportar un resultado
+func (m *Match) CanReportResult() bool {
+	return m.Status == MatchStatusInProgress
+}
+
+// CanValidate verifica si la partida puede ser validada
+func (m *Match) CanValidate() bool {
+	return m.Status == MatchStatusPendingValidation
 }

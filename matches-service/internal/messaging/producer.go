@@ -141,3 +141,18 @@ func PublishMatchCancelled(matchData map[string]interface{}) error {
 func PublishResultRecorded(resultData map[string]interface{}) error {
 	return PublishEvent("match.result.recorded", "RESULT_RECORDED", resultData)
 }
+
+// PublishMatchResultReported publica evento de resultado reportado (pendiente validación)
+func PublishMatchResultReported(matchData map[string]interface{}) error {
+	return PublishEvent("match.result.reported", "MATCH_RESULT_REPORTED", matchData)
+}
+
+// PublishMatchFinished publica evento de partida finalizada y validada
+func PublishMatchFinished(matchData map[string]interface{}) error {
+	return PublishEvent("match.finished", "MATCH_FINISHED", matchData)
+}
+
+// PublishMatchResultRejected publica evento de resultado rechazado
+func PublishMatchResultRejected(matchData map[string]interface{}) error {
+	return PublishEvent("match.result.rejected", "MATCH_RESULT_REJECTED", matchData)
+}
