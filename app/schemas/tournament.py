@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from app.models.tournament import TournamentStatus
 
 
@@ -63,3 +63,26 @@ class TournamentListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class StartTournamentRequest(BaseModel):
+    """Schema para iniciar un torneo y generar bracket"""
+    participant_ids: List[int] = Field(..., min_length=2, description="Lista de IDs de participantes")
+    
+    @field_validator('participant_ids')
+    @classmethod
+    def validate_participants(cls, v: List[int]) -> List[int]:
+        """Valida que haya participantes únicos"""
+        if len(v) != len(set(v)):
+            raise ValueError("Los IDs de participantes deben ser únicos")
+        return v
+
+
+class BracketInfoResponse(BaseModel):
+    """Schema para información del bracket"""
+    tournament_id: int
+    total_participants: int
+    total_rounds: int
+    first_round_matches: int
+    matches_generated: int
+    status: str

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 import math
@@ -8,9 +8,12 @@ from app.schemas.tournament import (
     TournamentCreate,
     TournamentUpdate,
     TournamentResponse,
-    TournamentListResponse
+    TournamentListResponse,
+    StartTournamentRequest,
+    BracketInfoResponse
 )
 from app.services.tournament_service import TournamentService
+from app.services.bracket_service import BracketService
 from app.models.tournament import TournamentStatus
 
 router = APIRouter(
@@ -139,3 +142,51 @@ async def delete_tournament(
     **Publica evento:** tournament.deleted
     """
     return await TournamentService.delete_tournament_async(db, tournament_id)
+
+
+@router.post("/{tournament_id}/start", response_model=BracketInfoResponse, status_code=status.HTTP_200_OK)
+async def start_tournament(
+    tournament_id: int,
+    request: StartTournamentRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Inicia un torneo generando el bracket y creando las partidas.
+    
+    - **participant_ids**: Lista de IDs de participantes (mínimo 2)
+    
+    El torneo debe estar en estado 'registration' para poder iniciarse.
+    
+    **Publica evento:** tournament.bracket.generated
+    
+    **Flujo:**
+    1. Valida el torneo y participantes
+    2. Genera estructura de bracket (eliminación simple)
+    3. Cambia estado del torneo a 'in_progress'
+    4. Publica evento para que Matches Service cree las partidas
+    """
+    # Obtener torneo
+    tournament = TournamentService.get_tournament_by_id(db, tournament_id)
+    
+    # Validar que esté en estado registration
+    if tournament.status != TournamentStatus.REGISTRATION:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El torneo debe estar en estado 'registration'. Estado actual: {tournament.status.value}"
+        )
+    
+    # Validar número de participantes
+    num_participants = len(request.participant_ids)
+    if num_participants > tournament.max_participants:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Número de participantes ({num_participants}) excede el máximo permitido ({tournament.max_participants})"
+        )
+    
+    # Generar bracket
+    bracket_info = await BracketService.start_tournament(tournament, request.participant_ids)
+    
+    # Cambiar estado del torneo a in_progress
+    await TournamentService.change_status_async(db, tournament_id, TournamentStatus.IN_PROGRESS)
+    
+    return bracket_info

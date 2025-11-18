@@ -8,6 +8,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"matches-service/config"
+	"matches-service/internal/database"
+	"matches-service/internal/models"
 )
 
 var (
@@ -82,6 +84,7 @@ func StartConsuming() error {
 		"tournament.updated",
 		"tournament.deleted",
 		"tournament.status.*",
+		"tournament.bracket.generated", // Nuevo: escuchar generación de brackets
 	}
 
 	for _, key := range routingKeys {
@@ -156,6 +159,8 @@ func handleMessage(msg amqp.Delivery) error {
 		return handleTournamentUpdated(event.Data)
 	case "TOURNAMENT_DELETED":
 		return handleTournamentDeleted(event.Data)
+	case "BRACKET_GENERATED":
+		return handleBracketGenerated(event.Data)
 	case "TOURNAMENT_STATUS_CHANGED":
 		return handleTournamentStatusChanged(event.Data)
 	default:
@@ -206,23 +211,106 @@ func handleTournamentDeleted(data map[string]interface{}) error {
 	return nil
 }
 
-// handleTournamentStatusChanged maneja cambios de estado de torneo
-func handleTournamentStatusChanged(data map[string]interface{}) error {
-	tournamentID := data["id"]
-	newStatus := data["new_status"]
-	oldStatus := data["old_status"]
+// handleBracketGenerated maneja la generación de brackets
+func handleBracketGenerated(data map[string]interface{}) error {
+	tournamentID := data["tournament_id"]
+	tournamentName := data["tournament_name"]
+	totalParticipants := data["total_participants"]
 
-	log.Printf("🔄 Estado de torneo cambió: ID=%v, %s → %s", tournamentID, oldStatus, newStatus)
+	log.Printf("🎯 Bracket generado para torneo: ID=%v, Name=%s, Participantes=%v",
+		tournamentID, tournamentName, totalParticipants)
+
+	// Obtener los matches a crear
+	matchesData, ok := data["matches"].([]interface{})
+	if !ok {
+		return fmt.Errorf("formato inválido de matches en bracket")
+	}
+
+	log.Printf("📋 Creando %d matches de la primera ronda...", len(matchesData))
+
+	// Crear cada match usando el servicio
+	for i, matchInterface := range matchesData {
+		matchMap, ok := matchInterface.(map[string]interface{})
+		if !ok {
+			log.Printf("⚠️ Formato inválido en match %d, saltando...", i)
+			continue
+		}
+
+		// Convertir tipos
+		tournamentIDFloat, _ := tournamentID.(float64)
+		roundFloat, _ := matchMap["round"].(float64)
+		matchNumberFloat, _ := matchMap["match_number"].(float64)
+		player1Float, _ := matchMap["player1_id"].(float64)
+		player2Float, _ := matchMap["player2_id"].(float64)
+
+		// Crear match en la base de datos
+		err := createMatchFromBracket(
+			uint(tournamentIDFloat),
+			int(roundFloat),
+			int(matchNumberFloat),
+			uint(player1Float),
+			uint(player2Float),
+		)
+
+		if err != nil {
+			log.Printf("❌ Error al crear match %d: %v", i+1, err)
+			continue
+		}
+
+		log.Printf("✅ Match %d creado: Round %d, Match %d",
+			i+1, int(roundFloat), int(matchNumberFloat))
+	}
+
+	log.Printf("🎉 Bracket generado completamente para torneo ID=%v", tournamentID)
+	return nil
+}
+
+// handleTournamentStatusChanged maneja el cambio de estado de un torneo
+func handleTournamentStatusChanged(data map[string]interface{}) error {
+	tournamentID := data["tournament_id"]
+	status := data["status"]
+
+	log.Printf("🔄 Estado de torneo cambiado: ID=%v, Status=%s", tournamentID, status)
 
 	// Aquí podrías:
-	// - Si cambió a "in_progress": generar brackets automáticamente
-	// - Si cambió a "completed": finalizar todas las partidas
-	// - Si cambió a "registration": abrir inscripciones
+	// - Actualizar el estado de los matches relacionados según el estado del torneo
+	// - Si el torneo se cancela, cancelar todos los matches
+	// - Si el torneo inicia, activar los matches de la primera ronda
+	// - Sincronizar información relevante
 
-	if newStatus == "in_progress" {
-		log.Printf("🎮 Torneo iniciado, generar brackets para torneo ID=%v", tournamentID)
-		// TODO: Implementar generación de brackets
+	return nil
+}
+
+// createMatchFromBracket crea un match desde el bracket generado
+func createMatchFromBracket(tournamentID uint, round, matchNumber int, player1ID, player2ID uint) error {
+	// Importar modelos y base de datos
+	match := &models.Match{
+		TournamentID: tournamentID,
+		Round:        round,
+		MatchNumber:  matchNumber,
+		Player1ID:    &player1ID,
+		Player2ID:    &player2ID,
+		Status:       models.MatchStatusScheduled,
+		Player1Score: 0,
+		Player2Score: 0,
 	}
+
+	if err := database.PostgresDB.Create(match).Error; err != nil {
+		return err
+	}
+
+	// Publicar evento de match creado
+	matchData := map[string]interface{}{
+		"id":            match.ID,
+		"tournament_id": match.TournamentID,
+		"round":         match.Round,
+		"match_number":  match.MatchNumber,
+		"player1_id":    player1ID,
+		"player2_id":    player2ID,
+		"status":        string(match.Status),
+	}
+
+	PublishMatchCreated(matchData)
 
 	return nil
 }
