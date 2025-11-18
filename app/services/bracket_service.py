@@ -145,10 +145,10 @@ class BracketService:
     def get_bracket_info(num_participants: int) -> Dict[str, Any]:
         """
         Obtiene información sobre cómo sería el bracket sin generarlo.
-        
+
         Args:
             num_participants: Número de participantes
-            
+
         Returns:
             Información del bracket
         """
@@ -157,12 +157,12 @@ class BracketService:
                 "valid": False,
                 "message": "Se necesitan al menos 2 participantes"
             }
-        
+
         next_power_of_2 = 2 ** math.ceil(math.log2(num_participants))
         num_byes = next_power_of_2 - num_participants
         total_rounds = BracketService.calculate_rounds(num_participants)
         first_round_matches = (num_participants - num_byes) // 2
-        
+
         return {
             "valid": True,
             "total_participants": num_participants,
@@ -171,3 +171,75 @@ class BracketService:
             "first_round_matches": first_round_matches,
             "total_matches": num_participants - 1  # En eliminación simple, total de matches = n - 1
         }
+
+    @staticmethod
+    async def advance_winner_to_next_round(
+        tournament_id: int,
+        match_id: int,
+        round_number: int,
+        match_number: int,
+        winner_id: int
+    ) -> Dict[str, Any]:
+        """
+        Avanza al ganador de un match a la siguiente ronda.
+
+        Args:
+            tournament_id: ID del torneo
+            match_id: ID del match completado
+            round_number: Número de ronda del match completado
+            match_number: Número de match en la ronda
+            winner_id: ID del ganador
+
+        Returns:
+            Información sobre la actualización del bracket
+        """
+        try:
+            logger.info(f"🏆 Avanzando ganador {winner_id} a siguiente ronda")
+            logger.info(f"📍 Match completado: Torneo={tournament_id}, Ronda={round_number}, Match={match_number}")
+
+            # Calcular el match de la siguiente ronda
+            next_round = round_number + 1
+            # En un bracket de eliminación simple, cada 2 matches de una ronda
+            # alimentan 1 match de la siguiente ronda
+            next_match_number = (match_number + 1) // 2
+
+            # Determinar si el ganador va como player1 o player2 en el siguiente match
+            # Si match_number es impar (1, 3, 5...) → player1
+            # Si match_number es par (2, 4, 6...) → player2
+            is_player1 = (match_number % 2) == 1
+
+            logger.info(f"🎯 Siguiente match: Ronda={next_round}, Match={next_match_number}, Posición={'Player1' if is_player1 else 'Player2'}")
+
+            # Crear o actualizar el match de la siguiente ronda
+            match_data = {
+                "tournament_id": tournament_id,
+                "round": next_round,
+                "match_number": next_match_number,
+                "winner_id": winner_id,
+                "is_player1": is_player1,
+                "previous_match_id": match_id
+            }
+
+            # Publicar evento para que Matches Service cree/actualice el siguiente match
+            await rabbitmq_service.publish_event(
+                routing_key="bracket.update.next_match",
+                event_data=match_data,
+                event_type="BRACKET_UPDATE_NEXT_MATCH"
+            )
+
+            logger.info(f"✅ Evento publicado para actualizar siguiente match")
+
+            return {
+                "success": True,
+                "tournament_id": tournament_id,
+                "completed_match_id": match_id,
+                "completed_round": round_number,
+                "winner_id": winner_id,
+                "next_round": next_round,
+                "next_match_number": next_match_number,
+                "position": "player1" if is_player1 else "player2"
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error al avanzar ganador: {e}")
+            raise

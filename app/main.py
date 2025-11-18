@@ -40,24 +40,40 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️ Redis no disponible - continuando sin caché")
     
-    # Conectar a RabbitMQ
+    # Conectar a RabbitMQ (Producer)
     from app.services.messaging_service import rabbitmq_service
     await rabbitmq_service.connect()
     if rabbitmq_service.is_connected():
-        logger.info("✅ RabbitMQ conectado y listo")
+        logger.info("✅ RabbitMQ Producer conectado y listo")
     else:
-        logger.warning("⚠️ RabbitMQ no disponible - los eventos no se publicarán")
-    
+        logger.warning("⚠️ RabbitMQ Producer no disponible - los eventos no se publicarán")
+
+    # Conectar a RabbitMQ (Consumer)
+    from app.services.match_consumer import match_consumer
+    await match_consumer.connect()
+    if match_consumer.is_connected():
+        logger.info("✅ RabbitMQ Consumer conectado")
+        # Iniciar consumo de mensajes en background
+        import asyncio
+        asyncio.create_task(match_consumer.start_consuming())
+        logger.info("🎧 Consumer de matches iniciado en background")
+    else:
+        logger.warning("⚠️ RabbitMQ Consumer no disponible - no se procesarán eventos de matches")
+
     yield
-    
+
     # Shutdown
     logger.info("👋 Cerrando aplicación...")
-    
+
     # Cerrar conexión a Redis
     from app.cache.redis_client import redis_client
     redis_client.close()
-    
-    # Cerrar conexión a RabbitMQ
+
+    # Cerrar Consumer de RabbitMQ
+    from app.services.match_consumer import match_consumer
+    await match_consumer.close()
+
+    # Cerrar Producer de RabbitMQ
     from app.services.messaging_service import rabbitmq_service
     await rabbitmq_service.close()
 

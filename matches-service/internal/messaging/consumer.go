@@ -78,13 +78,14 @@ func StartConsuming() error {
 		return fmt.Errorf("error al declarar cola: %w", err)
 	}
 
-	// Bindear a eventos de torneos
+	// Bindear a eventos de torneos y brackets
 	routingKeys := []string{
 		"tournament.created",
 		"tournament.updated",
 		"tournament.deleted",
 		"tournament.status.*",
-		"tournament.bracket.generated", // Nuevo: escuchar generación de brackets
+		"tournament.bracket.generated",  // Escuchar generación de brackets
+		"bracket.update.next_match",     // Escuchar actualizaciones de bracket
 	}
 
 	for _, key := range routingKeys {
@@ -161,6 +162,8 @@ func handleMessage(msg amqp.Delivery) error {
 		return handleTournamentDeleted(event.Data)
 	case "BRACKET_GENERATED":
 		return handleBracketGenerated(event.Data)
+	case "BRACKET_UPDATE_NEXT_MATCH":
+		return handleBracketUpdateNextMatch(event.Data)
 	case "TOURNAMENT_STATUS_CHANGED":
 		return handleTournamentStatusChanged(event.Data)
 	default:
@@ -311,6 +314,90 @@ func createMatchFromBracket(tournamentID uint, round, matchNumber int, player1ID
 	}
 
 	PublishMatchCreated(matchData)
+
+	return nil
+}
+
+// handleBracketUpdateNextMatch maneja la actualización del bracket cuando un match termina
+func handleBracketUpdateNextMatch(data map[string]interface{}) error {
+	tournamentIDFloat, _ := data["tournament_id"].(float64)
+	roundFloat, _ := data["round"].(float64)
+	matchNumberFloat, _ := data["match_number"].(float64)
+	winnerIDFloat, _ := data["winner_id"].(float64)
+	isPlayer1, _ := data["is_player1"].(bool)
+
+	tournamentID := uint(tournamentIDFloat)
+	round := int(roundFloat)
+	matchNumber := int(matchNumberFloat)
+	winnerID := uint(winnerIDFloat)
+
+	log.Printf("🏆 Actualizando bracket: Torneo=%d, Ronda=%d, Match=%d, Ganador=%d, Posición=%s",
+		tournamentID, round, matchNumber, winnerID, map[bool]string{true: "Player1", false: "Player2"}[isPlayer1])
+
+	// Buscar si el match ya existe
+	var existingMatch models.Match
+	err := database.PostgresDB.Where(
+		"tournament_id = ? AND round = ? AND match_number = ?",
+		tournamentID, round, matchNumber,
+	).First(&existingMatch).Error
+
+	if err != nil {
+		// El match no existe, crear uno nuevo
+		log.Printf("📝 Match no existe, creando nuevo match...")
+
+		var player1ID, player2ID *uint
+		if isPlayer1 {
+			player1ID = &winnerID
+			player2ID = nil
+		} else {
+			player1ID = nil
+			player2ID = &winnerID
+		}
+
+		newMatch := &models.Match{
+			TournamentID: tournamentID,
+			Round:        round,
+			MatchNumber:  matchNumber,
+			Player1ID:    player1ID,
+			Player2ID:    player2ID,
+			Status:       models.MatchStatusScheduled,
+			Player1Score: 0,
+			Player2Score: 0,
+		}
+
+		if err := database.PostgresDB.Create(newMatch).Error; err != nil {
+			return fmt.Errorf("error al crear match de siguiente ronda: %w", err)
+		}
+
+		log.Printf("✅ Match creado: ID=%d, Round=%d, Match=%d", newMatch.ID, round, matchNumber)
+
+		// Si ya tenemos ambos jugadores, publicar evento
+		if newMatch.Player1ID != nil && newMatch.Player2ID != nil {
+			log.Printf("🎮 Match completo con ambos jugadores, listo para ser jugado")
+		}
+
+	} else {
+		// El match ya existe, actualizar con el ganador
+		log.Printf("📝 Match existe (ID=%d), actualizando jugador...", existingMatch.ID)
+
+		if isPlayer1 {
+			existingMatch.Player1ID = &winnerID
+		} else {
+			existingMatch.Player2ID = &winnerID
+		}
+
+		if err := database.PostgresDB.Save(&existingMatch).Error; err != nil {
+			return fmt.Errorf("error al actualizar match: %w", err)
+		}
+
+		log.Printf("✅ Match actualizado: ID=%d", existingMatch.ID)
+
+		// Si ahora tenemos ambos jugadores, el match está listo
+		if existingMatch.Player1ID != nil && existingMatch.Player2ID != nil {
+			log.Printf("🎮 Match completo con ambos jugadores (P1=%d, P2=%d), listo para ser jugado",
+				*existingMatch.Player1ID, *existingMatch.Player2ID)
+		}
+	}
 
 	return nil
 }
