@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package teamservice;
+
+message TeamIdRequest {
+  string id = 1;
+}
+
+message TeamIdsRequest {
+  repeated string ids = 1;
+}
+
+message TeamMember {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string role = 4;
+}
+
+message MembersListResponse {
+  repeated TeamMember members = 1;
+}
+
+message TeamDetails {
+  string id = 1;
+  string name = 2;
+  string ownerId = 3;
+}
+
+message TeamsListResponse {
+  repeated TeamDetails teams = 1;
+}
+
+message EligibilityRequest {
+  string teamId = 1;
+  string tournamentId = 2;
+}
+
+message EligibilityResponse {
+  bool eligible = 1;
+  string tournamentName = 2; // <-- NUEVO
+}
+
+service TeamService {
+  rpc GetTeamById(TeamIdRequest) returns (TeamDetails);
+  rpc GetTeamMembers(TeamIdRequest) returns (MembersListResponse);
+  rpc ValidateTeamEligibility(EligibilityRequest) returns (EligibilityResponse);
+  rpc GetTeamsByIds(TeamIdsRequest) returns (TeamsListResponse);
+}
