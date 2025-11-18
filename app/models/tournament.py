@@ -15,6 +15,12 @@ class TournamentStatus(str, enum.Enum):
     CANCELLED = "cancelled"       # Cancelado
 
 
+class TournamentType(str, enum.Enum):
+    """Tipos de torneo según participantes"""
+    INDIVIDUAL = "individual"     # Torneo 1v1 (usuarios)
+    TEAM = "team"                 # Torneo por equipos
+
+
 class Tournament(Base):
     """
     Modelo de Torneo.
@@ -32,6 +38,12 @@ class Tournament(Base):
     # Configuración del torneo
     max_participants = Column(Integer, nullable=False, default=16)
     current_participants = Column(Integer, nullable=False, default=0)
+    tournament_type = Column(
+        SQLEnum(TournamentType),
+        nullable=False,
+        default=TournamentType.INDIVIDUAL,
+        index=True
+    )  # Tipo de torneo: individual (1v1) o team (equipos)
     
     # Estado y fechas
     status = Column(
@@ -62,6 +74,7 @@ class Tournament(Base):
             "description": self.description,
             "max_participants": self.max_participants,
             "current_participants": self.current_participants,
+            "tournament_type": self.tournament_type.value if self.tournament_type else None,
             "status": self.status.value if self.status else None,
             "registration_start": self.registration_start.isoformat() if self.registration_start else None,
             "registration_end": self.registration_end.isoformat() if self.registration_end else None,

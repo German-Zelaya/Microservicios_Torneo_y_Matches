@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
-from app.models.tournament import TournamentStatus
+from app.models.tournament import TournamentStatus, TournamentType
 
 
 class TournamentBase(BaseModel):
@@ -10,6 +10,7 @@ class TournamentBase(BaseModel):
     game: str = Field(..., min_length=2, max_length=100, description="Nombre del videojuego")
     description: Optional[str] = Field(None, max_length=1000, description="Descripción del torneo")
     max_participants: int = Field(default=16, ge=2, le=1000, description="Máximo de participantes")
+    tournament_type: TournamentType = Field(default=TournamentType.INDIVIDUAL, description="Tipo de torneo: individual (1v1) o team (equipos)")
     
     registration_start: Optional[datetime] = Field(None, description="Inicio de inscripciones")
     registration_end: Optional[datetime] = Field(None, description="Fin de inscripciones")
@@ -36,6 +37,7 @@ class TournamentUpdate(BaseModel):
     game: Optional[str] = Field(None, min_length=2, max_length=100)
     description: Optional[str] = Field(None, max_length=1000)
     max_participants: Optional[int] = Field(None, ge=2, le=1000)
+    tournament_type: Optional[TournamentType] = None
     status: Optional[TournamentStatus] = None
     
     registration_start: Optional[datetime] = None
@@ -48,10 +50,11 @@ class TournamentResponse(TournamentBase):
     """Schema para respuestas de torneos"""
     id: int
     current_participants: int
+    tournament_type: TournamentType
     status: TournamentStatus
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True  # Permite crear desde modelos SQLAlchemy
 

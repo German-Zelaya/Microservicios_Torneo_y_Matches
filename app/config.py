@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+
+    # External Services
+    AUTH_SERVICE_URL: str = "http://localhost:3000"
+    TEAMS_SERVICE_URL: str = "http://localhost:3002"
     
     @property
     def rabbitmq_url(self) -> str:

@@ -182,7 +182,30 @@ async def start_tournament(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Número de participantes ({num_participants}) excede el máximo permitido ({tournament.max_participants})"
         )
-    
+
+    # Validar participantes en servicios externos (Auth o Teams)
+    from app.services.external_services import external_services
+
+    try:
+        validation_result = await external_services.validate_participants(
+            participant_ids=request.participant_ids,
+            tournament_type=tournament.tournament_type.value
+        )
+
+        if not validation_result['all_valid']:
+            invalid_ids = validation_result.get('invalid_users', validation_result.get('invalid_teams', []))
+            entity_type = "usuarios" if tournament.tournament_type.value == "individual" else "equipos"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Los siguientes {entity_type} no son válidos: {invalid_ids}"
+            )
+
+    except ConnectionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
+
     # Generar bracket
     bracket_info = await BracketService.start_tournament(tournament, request.participant_ids)
     
