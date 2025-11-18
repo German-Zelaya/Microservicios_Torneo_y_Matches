@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package userservice;
+
+// Mensajes
+message TokenRequest {
+  string token = 1;
+}
+
+message UserInfo {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string role = 4;
+}
+
+message UserIdRequest {
+  string id = 1;
+}
+
+message UserIdsRequest {
+  repeated string ids = 1;
+}
+
+message UsersListResponse {
+  repeated UserInfo users = 1;
+}
+
+message PermissionRequest {
+  string userId = 1;
+  string action = 2;
+}
+
+message PermissionResponse {
+  bool allowed = 1;
+}
+
+// Servicio gRPC
+service UserService {
+  rpc ValidateToken(TokenRequest) returns (UserInfo);
+  rpc GetUserById(UserIdRequest) returns (UserInfo);
+  rpc GetUsersByIds(UserIdsRequest) returns (UsersListResponse);
+  rpc CheckPermission(PermissionRequest) returns (PermissionResponse);
+}
