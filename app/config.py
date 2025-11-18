@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # External Services
     AUTH_SERVICE_URL: str = "http://localhost:3000"
     TEAMS_SERVICE_URL: str = "http://localhost:3002"
+
+    # Auth Service Credentials (for service-to-service auth)
+    AUTH_SERVICE_EMAIL: str = "service@tournaments.com"
+    AUTH_SERVICE_PASSWORD: str = "service123"
     
     @property
     def rabbitmq_url(self) -> str:

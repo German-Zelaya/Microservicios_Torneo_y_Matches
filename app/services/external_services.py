@@ -15,8 +15,51 @@ class ExternalServicesClient:
         self.auth_service_url = getattr(settings, 'AUTH_SERVICE_URL', 'http://localhost:3000')
         self.teams_service_url = getattr(settings, 'TEAMS_SERVICE_URL', 'http://localhost:3002')
 
+        # Credenciales para Auth Service
+        self.auth_email = getattr(settings, 'AUTH_SERVICE_EMAIL', 'service@tournaments.com')
+        self.auth_password = getattr(settings, 'AUTH_SERVICE_PASSWORD', 'service123')
+
+        # Token JWT cacheado
+        self._auth_token: Optional[str] = None
+
         # Timeout para requests
         self.timeout = 10.0
+
+    async def _get_auth_token(self) -> str:
+        """
+        Obtiene un token JWT del Auth Service.
+        Primero intenta registrar el usuario de servicio, luego hace login.
+        """
+        if self._auth_token:
+            return self._auth_token
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            # Intentar registrar el usuario de servicio (por si no existe)
+            try:
+                register_url = f"{self.auth_service_url}/auth/register"
+                await client.post(register_url, json={
+                    "username": "tournaments_service",
+                    "email": self.auth_email,
+                    "password": self.auth_password
+                })
+            except Exception:
+                pass  # Si ya existe, ignoramos el error
+
+            # Hacer login para obtener token
+            login_url = f"{self.auth_service_url}/auth/login"
+            response = await client.post(login_url, json={
+                "email": self.auth_email,
+                "password": self.auth_password
+            })
+
+            if response.status_code == 200:
+                data = response.json()
+                self._auth_token = data.get('accessToken') or data.get('token')
+                logger.info("✅ Token JWT obtenido del Auth Service")
+                return self._auth_token
+            else:
+                logger.error(f"❌ Error al obtener token: {response.status_code}")
+                raise ConnectionError(f"No se pudo autenticar con Auth Service: {response.text}")
 
     async def validate_user(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -29,11 +72,15 @@ class ExternalServicesClient:
             Datos del usuario si existe, None si no existe
         """
         try:
+            # Obtener token JWT
+            token = await self._get_auth_token()
+
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 url = f"{self.auth_service_url}/users/{user_id}"
+                headers = {"Authorization": f"Bearer {token}"}
                 logger.info(f"🔍 Validando usuario {user_id} en Auth Service...")
 
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
 
                 if response.status_code == 200:
                     user_data = response.json()
@@ -41,6 +88,18 @@ class ExternalServicesClient:
                     return user_data
                 elif response.status_code == 404:
                     logger.warning(f"❌ Usuario {user_id} no encontrado")
+                    return None
+                elif response.status_code in [401, 403]:
+                    # Token expirado, limpiar cache e intentar de nuevo
+                    logger.warning("⚠️ Token expirado, renovando...")
+                    self._auth_token = None
+                    token = await self._get_auth_token()
+                    headers = {"Authorization": f"Bearer {token}"}
+                    response = await client.get(url, headers=headers)
+                    if response.status_code == 200:
+                        user_data = response.json()
+                        logger.info(f"✅ Usuario {user_id} válido: {user_data.get('username', 'N/A')}")
+                        return user_data
                     return None
                 else:
                     logger.error(f"❌ Error al validar usuario {user_id}: {response.status_code}")
