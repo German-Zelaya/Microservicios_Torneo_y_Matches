@@ -36,7 +36,7 @@ class ExternalServicesClient:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             # Intentar registrar el usuario de servicio (por si no existe)
             try:
-                register_url = f"{self.auth_service_url}/auth/register"
+                register_url = f"{self.auth_service_url}/api/auth/register"
                 await client.post(register_url, json={
                     "username": "tournaments_service",
                     "email": self.auth_email,
@@ -46,7 +46,7 @@ class ExternalServicesClient:
                 pass  # Si ya existe, ignoramos el error
 
             # Hacer login para obtener token
-            login_url = f"{self.auth_service_url}/auth/login"
+            login_url = f"{self.auth_service_url}/api/auth/login"
             response = await client.post(login_url, json={
                 "email": self.auth_email,
                 "password": self.auth_password
@@ -76,7 +76,7 @@ class ExternalServicesClient:
             token = await self._get_auth_token()
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                url = f"{self.auth_service_url}/users/{user_id}"
+                url = f"{self.auth_service_url}/api/users/{user_id}"
                 headers = {"Authorization": f"Bearer {token}"}
                 logger.info(f"🔍 Validando usuario {user_id} en Auth Service...")
 
