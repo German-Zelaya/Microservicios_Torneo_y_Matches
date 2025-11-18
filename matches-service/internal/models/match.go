@@ -24,10 +24,10 @@ type Match struct {
 	Round        int  `gorm:"not null" json:"round"`               // Ronda (1, 2, 3... final)
 	MatchNumber  int  `gorm:"not null" json:"match_number"`        // Número de partida en la ronda
 
-	// Participantes
-	Player1ID *uint `gorm:"index" json:"player1_id"` // ID del jugador 1 (puede ser null si no asignado)
-	Player2ID *uint `gorm:"index" json:"player2_id"` // ID del jugador 2 (puede ser null si no asignado)
-	WinnerID  *uint `gorm:"index" json:"winner_id"`  // ID del ganador (null hasta que termine)
+	// Participantes (UUIDs como strings)
+	Player1ID *string `gorm:"type:varchar(36);index" json:"player1_id"` // UUID del jugador/equipo 1
+	Player2ID *string `gorm:"type:varchar(36);index" json:"player2_id"` // UUID del jugador/equipo 2
+	WinnerID  *string `gorm:"type:varchar(36);index" json:"winner_id"`  // UUID del ganador
 
 	// Puntuaciones
 	Player1Score int `gorm:"default:0" json:"player1_score"`

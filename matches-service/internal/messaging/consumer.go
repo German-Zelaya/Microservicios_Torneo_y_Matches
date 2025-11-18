@@ -243,16 +243,27 @@ func handleBracketGenerated(data map[string]interface{}) error {
 		tournamentIDFloat, _ := tournamentID.(float64)
 		roundFloat, _ := matchMap["round"].(float64)
 		matchNumberFloat, _ := matchMap["match_number"].(float64)
-		player1Float, _ := matchMap["player1_id"].(float64)
-		player2Float, _ := matchMap["player2_id"].(float64)
+
+		// Player IDs pueden ser strings (UUIDs) o números
+		var player1ID, player2ID string
+		if p1, ok := matchMap["player1_id"].(string); ok {
+			player1ID = p1
+		} else if p1Float, ok := matchMap["player1_id"].(float64); ok {
+			player1ID = fmt.Sprintf("%.0f", p1Float)
+		}
+		if p2, ok := matchMap["player2_id"].(string); ok {
+			player2ID = p2
+		} else if p2Float, ok := matchMap["player2_id"].(float64); ok {
+			player2ID = fmt.Sprintf("%.0f", p2Float)
+		}
 
 		// Crear match en la base de datos
 		err := createMatchFromBracket(
 			uint(tournamentIDFloat),
 			int(roundFloat),
 			int(matchNumberFloat),
-			uint(player1Float),
-			uint(player2Float),
+			player1ID,
+			player2ID,
 		)
 
 		if err != nil {
@@ -285,7 +296,7 @@ func handleTournamentStatusChanged(data map[string]interface{}) error {
 }
 
 // createMatchFromBracket crea un match desde el bracket generado
-func createMatchFromBracket(tournamentID uint, round, matchNumber int, player1ID, player2ID uint) error {
+func createMatchFromBracket(tournamentID uint, round, matchNumber int, player1ID, player2ID string) error {
 	// Importar modelos y base de datos
 	match := &models.Match{
 		TournamentID: tournamentID,
@@ -323,15 +334,21 @@ func handleBracketUpdateNextMatch(data map[string]interface{}) error {
 	tournamentIDFloat, _ := data["tournament_id"].(float64)
 	roundFloat, _ := data["round"].(float64)
 	matchNumberFloat, _ := data["match_number"].(float64)
-	winnerIDFloat, _ := data["winner_id"].(float64)
 	isPlayer1, _ := data["is_player1"].(bool)
+
+	// Winner ID puede ser string (UUID) o número
+	var winnerID string
+	if wID, ok := data["winner_id"].(string); ok {
+		winnerID = wID
+	} else if wIDFloat, ok := data["winner_id"].(float64); ok {
+		winnerID = fmt.Sprintf("%.0f", wIDFloat)
+	}
 
 	tournamentID := uint(tournamentIDFloat)
 	round := int(roundFloat)
 	matchNumber := int(matchNumberFloat)
-	winnerID := uint(winnerIDFloat)
 
-	log.Printf("🏆 Actualizando bracket: Torneo=%d, Ronda=%d, Match=%d, Ganador=%d, Posición=%s",
+	log.Printf("🏆 Actualizando bracket: Torneo=%d, Ronda=%d, Match=%d, Ganador=%s, Posición=%s",
 		tournamentID, round, matchNumber, winnerID, map[bool]string{true: "Player1", false: "Player2"}[isPlayer1])
 
 	// Buscar si el match ya existe
@@ -345,7 +362,7 @@ func handleBracketUpdateNextMatch(data map[string]interface{}) error {
 		// El match no existe, crear uno nuevo
 		log.Printf("📝 Match no existe, creando nuevo match...")
 
-		var player1ID, player2ID *uint
+		var player1ID, player2ID *string
 		if isPlayer1 {
 			player1ID = &winnerID
 			player2ID = nil
@@ -394,7 +411,7 @@ func handleBracketUpdateNextMatch(data map[string]interface{}) error {
 
 		// Si ahora tenemos ambos jugadores, el match está listo
 		if existingMatch.Player1ID != nil && existingMatch.Player2ID != nil {
-			log.Printf("🎮 Match completo con ambos jugadores (P1=%d, P2=%d), listo para ser jugado",
+			log.Printf("🎮 Match completo con ambos jugadores (P1=%s, P2=%s), listo para ser jugado",
 				*existingMatch.Player1ID, *existingMatch.Player2ID)
 		}
 	}

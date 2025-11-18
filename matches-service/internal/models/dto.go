@@ -7,16 +7,16 @@ type CreateMatchRequest struct {
 	TournamentID uint       `json:"tournament_id" validate:"required"`
 	Round        int        `json:"round" validate:"required,min=1"`
 	MatchNumber  int        `json:"match_number" validate:"required,min=1"`
-	Player1ID    *uint      `json:"player1_id"`
-	Player2ID    *uint      `json:"player2_id"`
+	Player1ID    *string    `json:"player1_id"`
+	Player2ID    *string    `json:"player2_id"`
 	ScheduledAt  *time.Time `json:"scheduled_at"`
 	Notes        string     `json:"notes"`
 }
 
 // UpdateMatchRequest DTO para actualizar una partida
 type UpdateMatchRequest struct {
-	Player1ID    *uint        `json:"player1_id"`
-	Player2ID    *uint        `json:"player2_id"`
+	Player1ID    *string      `json:"player1_id"`
+	Player2ID    *string      `json:"player2_id"`
 	Player1Score *int         `json:"player1_score" validate:"omitempty,min=0"`
 	Player2Score *int         `json:"player2_score" validate:"omitempty,min=0"`
 	Status       *MatchStatus `json:"status"`
@@ -33,7 +33,7 @@ type StartMatchRequest struct {
 type CompleteMatchRequest struct {
 	Player1Score int    `json:"player1_score" validate:"required,min=0"`
 	Player2Score int    `json:"player2_score" validate:"required,min=0"`
-	WinnerID     uint   `json:"winner_id" validate:"required"`
+	WinnerID     string `json:"winner_id" validate:"required"`
 	Notes        string `json:"notes"`
 }
 
@@ -50,7 +50,7 @@ type RecordResultRequest struct {
 type ReportResultRequest struct {
 	Player1Score int    `json:"player1_score" validate:"required,min=0"`
 	Player2Score int    `json:"player2_score" validate:"required,min=0"`
-	WinnerID     uint   `json:"winner_id" validate:"required"`
+	WinnerID     string `json:"winner_id" validate:"required"`
 	Notes        string `json:"notes"`
 }
 
@@ -66,9 +66,9 @@ type MatchResponse struct {
 	TournamentID uint        `json:"tournament_id"`
 	Round        int         `json:"round"`
 	MatchNumber  int         `json:"match_number"`
-	Player1ID    *uint       `json:"player1_id"`
-	Player2ID    *uint       `json:"player2_id"`
-	WinnerID     *uint       `json:"winner_id"`
+	Player1ID    *string     `json:"player1_id"`
+	Player2ID    *string     `json:"player2_id"`
+	WinnerID     *string     `json:"winner_id"`
 	Player1Score int         `json:"player1_score"`
 	Player2Score int         `json:"player2_score"`
 	Status       MatchStatus `json:"status"`
