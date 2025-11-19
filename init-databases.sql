@@ -7,6 +7,12 @@ CREATE DATABASE tournaments_db;
 -- Base de datos para matches-service
 CREATE DATABASE matches_db;
 
+CREATE DATABASE teams_db;
+
+CREATE DATABASE auth_db;
+
+CREATE DATABASE notifications_db;
+
 -- Conectar a tournaments_db para verificar
 \c tournaments_db;
 SELECT 'tournaments_db creada exitosamente' AS status;

@@ -1,11 +1,22 @@
 version: '3.8'
 
+# ========================================
+# CONFIGURACIÓN GLOBAL DE LOGGING
+# ========================================
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"      # Tamaño máximo por archivo de log
+    max-file: "3"        # Número máximo de archivos rotados
+    tag: "{{.Name}}"     # Etiqueta con el nombre del contenedor
+    labels: "service,environment"
+
 services:
   # ========================================
   # BASES DE DATOS
   # ========================================
   
-  # PostgreSQL para ambos servicios
+  # PostgreSQL para todos los servicios
   postgres:
     image: postgres:15-alpine
     container_name: postgres-esports
@@ -26,6 +37,10 @@ services:
       retries: 3
     networks:
       - esports-network
+    logging: *default-logging
+    labels:
+      service: "database"
+      environment: "production"
 
   # MongoDB para matches-service
   mongodb:
@@ -43,12 +58,16 @@ services:
       retries: 3
     networks:
       - esports-network
+    logging: *default-logging
+    labels:
+      service: "database"
+      environment: "production"
 
   # ========================================
   # CACHÉ Y MENSAJERÍA
   # ========================================
   
-  # Redis para caché (compartido)
+  # Redis para caché (compartido por todos los servicios)
   redis:
     image: redis:7-alpine
     container_name: redis-esports
@@ -65,8 +84,12 @@ services:
       retries: 3
     networks:
       - esports-network
+    logging: *default-logging
+    labels:
+      service: "cache"
+      environment: "production"
 
-  # RabbitMQ para mensajería (compartido)
+  # RabbitMQ para mensajería (compartido por todos los servicios)
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq-esports
@@ -86,17 +109,20 @@ services:
       retries: 3
     networks:
       - esports-network
+    logging: *default-logging
+    labels:
+      service: "messaging"
+      environment: "production"
 
   # ========================================
-  # MICROSERVICIOS (Opcional - comentados por defecto)
+  # MICROSERVICIOS
   # ========================================
   
   # Tournaments Service (Python/FastAPI)
-  # Como está en la raíz, el context es "."
   tournaments-service:
     build:
-      context: .                    # ← Raíz del proyecto
-      dockerfile: Dockerfile        # ← Dockerfile en la raíz
+      context: .
+      dockerfile: Dockerfile
     container_name: tournaments-service
     ports:
       - "8001:8001"
@@ -120,6 +146,12 @@ services:
     restart: unless-stopped
     networks:
       - esports-network
+    command: sh -c "sleep 14 && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001"
+    logging: *default-logging
+    labels:
+      service: "tournaments"
+      environment: "production"
+      language: "python"
     # Descomentar para modo desarrollo con hot-reload
     # volumes:
     #   - ./app:/app/app
@@ -159,6 +191,12 @@ services:
     restart: unless-stopped
     networks:
       - esports-network
+    command: sh -c "sleep 14 && ./main"
+    logging: *default-logging
+    labels:
+      service: "matches"
+      environment: "production"
+      language: "go"
 
   # Auth Service (Node.js)
   auth-service:
@@ -182,6 +220,12 @@ services:
     restart: unless-stopped
     networks:
       - esports-network
+    command: sh -c "sleep 14 && npm start"
+    logging: *default-logging
+    labels:
+      service: "auth"
+      environment: "production"
+      language: "nodejs"
 
   # Teams Service (Node.js)
   teams-service:
@@ -210,6 +254,91 @@ services:
     restart: unless-stopped
     networks:
       - esports-network
+    command: sh -c "sleep 14 && npm start"
+    logging: *default-logging
+    labels:
+      service: "teams"
+      environment: "production"
+      language: "nodejs"
+
+  # Notifications Service (Node.js)
+  notifications-service:
+    build:
+      context: ./notifications-service  # Ajusta esta ruta según tu estructura
+      dockerfile: Dockerfile
+    container_name: notifications-service
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: postgresql://postgres:super124man@postgres:5432/notifications_db?schema=public
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: your_jwt_secret_key_here
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: arduzlimpiaspriscilaximena@gmail.com
+      SMTP_PASS: okgy twzm eqmk yien
+      SMTP_FROM: arduzlimpiaspriscilaximena@gmail.com
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - esports-network
+    logging: *default-logging
+    labels:
+      service: "notifications"
+      environment: "production"
+      language: "nodejs"
+    # El comando se define en el Dockerfile (ejecuta el código compilado de producción)
+    # Descomentar para modo desarrollo con hot-reload
+    # volumes:
+    #   - ./notifications-service/src:/app/src
+    #   - ./notifications-service/tsconfig.json:/app/tsconfig.json
+    #   - ./notifications-service/nest-cli.json:/app/nest-cli.json
+    # command: sh -c "sleep 14 && npm run start:dev"
+
+  # GraphQL Gateway (Node.js)
+  graphql-gateway:
+    build:
+      context: ./graphql-gateway
+      dockerfile: Dockerfile
+    container_name: graphql-gateway
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      TOURNAMENTS_SERVICE_URL: http://tournaments-service:8001
+      MATCHES_SERVICE_URL: http://matches-service:8002
+      AUTH_SERVICE_URL: http://auth-service:3000
+      TEAMS_SERVICE_URL: http://teams-service:3002
+    depends_on:
+      tournaments-service:
+        condition: service_started
+      matches-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      teams-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - esports-network
+    command: sh -c "sleep 16 && node src/server.js"
+    logging: *default-logging
+    labels:
+      service: "graphql-gateway"
+      environment: "production"
+      language: "nodejs"
+    # Descomentar para modo desarrollo con hot-reload
+    # volumes:
+    #   - ./graphql-gateway/src:/app/src
 
 # ========================================
 # VOLÚMENES
