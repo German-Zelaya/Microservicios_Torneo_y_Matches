@@ -227,23 +227,23 @@ class ExternalServicesClient:
 
     async def validate_participants(
         self,
-        participant_ids: List[int],
+        participant_ids: List[str],
         tournament_type: str
     ) -> Dict[str, Any]:
         """
         Valida participantes según el tipo de torneo.
 
         Args:
-            participant_ids: Lista de IDs de participantes
+            participant_ids: Lista de IDs de participantes (UUIDs como strings)
             tournament_type: 'individual' para usuarios, 'team' para equipos
 
         Returns:
             Resultado de la validación
         """
         if tournament_type == 'individual':
-            return await self.validate_users([str(id) for id in participant_ids])
+            return await self.validate_users(participant_ids)
         elif tournament_type == 'team':
-            return await self.validate_teams([str(id) for id in participant_ids])
+            return await self.validate_teams(participant_ids)
         else:
             raise ValueError(f"Tipo de torneo no válido: {tournament_type}. Use 'individual' o 'team'")
 
