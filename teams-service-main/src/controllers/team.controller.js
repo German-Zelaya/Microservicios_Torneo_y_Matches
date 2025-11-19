@@ -175,6 +175,7 @@ export const acceptInvitation = async (req, res) => {
 
     // Agregar al equipo
     await TeamMember.create({
+      id: uuidv4(),
       teamId: id,
       userId: invitation.userId,
       role: "MEMBER",
