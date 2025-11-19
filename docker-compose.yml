@@ -108,6 +108,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
       RABBITMQ_PASSWORD: guest
+      AUTH_SERVICE_URL: http://auth-service:3000
+      TEAMS_SERVICE_URL: http://teams-service:3002
     depends_on:
       postgres:
         condition: service_healthy
