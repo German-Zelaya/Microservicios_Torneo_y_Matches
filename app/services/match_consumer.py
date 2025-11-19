@@ -99,6 +99,28 @@ class MatchConsumer:
 
             logger.info(f"📊 Match completado: ID={match_id}, Torneo={tournament_id}, Ronda={round_number}, Match#={match_number}, Ganador={winner_id}")
 
+            # Verificar si ya es la final (solo 1 match en la ronda)
+            # Si match_number es 1 y no hay más matches en la ronda, es la final
+            if match_number == 1:
+                # Obtener el torneo para verificar si hay más rondas
+                from app.database.session import SessionLocal
+                from app.models.tournament import Tournament
+                from app.services.bracket_service import BracketService
+
+                db = SessionLocal()
+                try:
+                    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+                    if tournament:
+                        # Calcular el número total de rondas basado en participantes
+                        total_rounds = BracketService.calculate_rounds(tournament.current_participants or tournament.max_participants)
+
+                        if round_number >= total_rounds:
+                            logger.info(f"🏆 ¡TORNEO FINALIZADO! Ganador del torneo: {winner_id}")
+                            logger.info(f"📊 Ronda {round_number} era la final (total rondas: {total_rounds})")
+                            return  # No crear más matches, el torneo terminó
+                finally:
+                    db.close()
+
             # Avanzar al ganador a la siguiente ronda
             from app.services.bracket_service import BracketService
 

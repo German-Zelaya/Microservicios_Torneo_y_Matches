@@ -208,8 +208,10 @@ async def start_tournament(
 
     # Generar bracket
     bracket_info = await BracketService.start_tournament(tournament, request.participant_ids)
-    
-    # Cambiar estado del torneo a in_progress
+
+    # Actualizar número de participantes y cambiar estado a in_progress
+    tournament.current_participants = len(request.participant_ids)
+    db.commit()
     await TournamentService.change_status_async(db, tournament_id, TournamentStatus.IN_PROGRESS)
-    
+
     return bracket_info
