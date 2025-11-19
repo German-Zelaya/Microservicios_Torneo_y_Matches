@@ -41,7 +41,9 @@ export const createTeam = async (req, res) => {
 // ================== OBTENER EQUIPO POR ID ==================
 export const getTeamById = async (req, res) => {
   try {
-    const team = await Team.findByPk(req.params.id);
+    const team = await Team.findByPk(req.params.id, {
+      include: [{ model: TeamMember, as: 'TeamMembers' }]
+    });
     if (!team) return res.status(404).json({ message: 'Equipo no encontrado' });
     res.json(team);
   } catch (error) {
