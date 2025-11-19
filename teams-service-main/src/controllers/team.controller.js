@@ -120,7 +120,10 @@ export const inviteMember = async (req, res) => {
     }
 
     // Validar usuario en Auth Service
-    const userCheck = await axios.get(`${AUTH_URL}/${userId}`).catch(() => null);
+    const authHeader = req.headers.authorization;
+    const userCheck = await axios.get(`${AUTH_URL}/${userId}`, {
+      headers: authHeader ? { Authorization: authHeader } : {}
+    }).catch(() => null);
     if (!userCheck) {
       return res.status(404).json({ message: "Usuario no existe" });
     }
