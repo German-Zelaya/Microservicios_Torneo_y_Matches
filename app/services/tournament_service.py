@@ -59,11 +59,12 @@ class TournamentService:
             game=tournament_data.game,
             description=tournament_data.description,
             max_participants=tournament_data.max_participants,
+            tournament_type=tournament_data.tournament_type,
             registration_start=tournament_data.registration_start,
             registration_end=tournament_data.registration_end,
             tournament_start=tournament_data.tournament_start,
             tournament_end=tournament_data.tournament_end,
-            status=TournamentStatus.PENDING,
+            status=TournamentStatus.REGISTRATION,
             current_participants=0
         )
         
